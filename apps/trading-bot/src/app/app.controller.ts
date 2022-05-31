@@ -1,13 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Post, Query } from "@nestjs/common";
+import { TradingViewMessage } from "@trading-bot/types";
 
-import { AppService } from './app.service';
-
-@Controller()
+@Controller("orders")
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
-  @Get()
-  getData() {
-    return this.appService.getData();
+  @Post("create")
+  public executeOrder(
+    @Query("accountId") accountId: string,
+    @Body() body: TradingViewMessage
+  ): void {
+    console.log(accountId, body);
   }
 }
