@@ -38,6 +38,8 @@ import { USDMClient } from "binance";
 export class AppController {
   @Post("create")
   public executeOrder(@Query("accountId") accountId: string, @Body() body: TradingViewMessage): void {
+    console.log(body);
+
     const client = new USDMClient({
       api_key: "qT4vKL9C9gjuV2J93KwYGe5h106OhpnqfLCp0erUjYEeUeJlUD0K5Ij9CBsqECto",
       // api_key: accountId,
