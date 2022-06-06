@@ -56,7 +56,6 @@ export interface TradingViewMessage {
   "strategy_market_position": "{{strategy.market_position}}",
   "strategy_market_position_size": "{{strategy.market_position_size}}",
   "strategy_prev_market_position": "{{strategy.prev_market_position}}",
-  "strategy_prev_market_position_size": "{{strategy.prev_market_position_size}}",
-  "plot": "{{plot_0}}"
+  "strategy_prev_market_position_size": "{{strategy.prev_market_position_size}}"
 }
 */
