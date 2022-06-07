@@ -17,7 +17,7 @@ export class AppController {
     });
 
     this.appService.executeOrder({
-      positionSizeRatio: 0.01,
+      positionSizeRatio: 0.02,
       client,
       message: body
     }).then((result) => {
