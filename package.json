@@ -15,7 +15,7 @@
     "binance": "^2.0.29",
     "node-binance-api": "^0.13.1",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.0.0",
+    "rxjs": "^7.5.5",
     "tslib": "^2.3.0"
   },
   "devDependencies": {

@@ -1,75 +1,129 @@
 import { Injectable } from "@nestjs/common";
-import { TradingViewMarketPosition, TradingViewMessage } from "@trading-bot/types";
-import { FuturesPosition, NewOrderError, NewOrderResult, USDMClient } from "binance";
+import {
+  CancelAllOpenOrdersResult,
+  FuturesAccountBalance,
+  FuturesPosition,
+  FuturesSymbolExchangeInfo,
+  NewFuturesOrderParams,
+  NewOrderError,
+  NewOrderResult,
+  OrderSide,
+  OrderTimeInForce,
+  RestClientOptions,
+  USDMClient,
+  WebsocketClientOptions,
+} from "binance";
 
-export interface OrderParams {
-  client: USDMClient;
-  positionSizeRatio: number;
-  message: TradingViewMessage;
-}
-
-export interface Response {
-  closedPosition: NewOrderResult | NewOrderError | undefined;
-  newPosition: NewOrderResult | NewOrderError;
+export interface StopLimitOrderParams {
+  symbol: string;
+  orderSide: OrderSide;
+  price: number;
+  takeProfit?: number;
+  stopLoss: number;
+  quantity: number;
 }
 
 @Injectable()
 export class AppService {
-  public async executeOrder({ client, positionSizeRatio, message }: OrderParams): Promise<Response> {
-    const symbol = message.ticker.replace("PERP", "");
-    const availableBalance = await this.#getUsdtBalance(client);
+  private options: Pick<WebsocketClientOptions & RestClientOptions, "api_key" | "api_secret"> = {
+    api_key: "qT4vKL9C9gjuV2J93KwYGe5h106OhpnqfLCp0erUjYEeUeJlUD0K5Ij9CBsqECto",
+    api_secret: "JWIoCzwG8OoDe5wxJ0UYJywHqbXTpiYbZWGOEngGMCVcPjZgvd6L6qXrgJIKDO1o",
+    // api_key: "0b65e81fba5e592367d247fd2b37948c23e3527af00a87c719837ac512fe076b",
+    // api_secret: "c3eb1b7e64607ae049d1dc20114cbb84d6d9d1b961f4fe870feb21e4ad62407d",
+  };
+  private usdmClient = this.#getUsdmClient();
 
+  public async getAccountBalance(asset = "USDT"): Promise<FuturesAccountBalance> {
+    return this.usdmClient.getBalance().then((data) => {
+      return data.find((b) => b.asset === asset);
+    });
+  }
+
+  public async closePositionForSymbolOrder(symbol: string): Promise<NewOrderResult | NewOrderError | undefined> {
     // Close all orders
-    const positions = await client.getPositions();
+    const positions = await this.usdmClient.getPositions();
     const position = positions.find((p) => p.symbol === symbol);
-    const leverage = Number.parseFloat(position.leverage.toString());
 
     let closedPosition: NewOrderResult | NewOrderError | undefined;
     try {
-      closedPosition = await this.#closeExistingOffer(client, position);
+      closedPosition = await this.#closeExistingOffer(this.usdmClient, position);
     } catch (e) {
       closedPosition = undefined;
     }
 
-    let newPosition: NewOrderResult | NewOrderError;
-    try {
-      newPosition = await client.submitNewOrder({
-        symbol,
-        side: message.strategy_market_position === TradingViewMarketPosition.Long ? "BUY" : "SELL",
-        type: "MARKET",
-        quantity: Math.floor((availableBalance * positionSizeRatio * leverage) / Number.parseFloat(message.close))
-      });
-    } catch (e) {
-      newPosition = e;
-    }
+    return closedPosition;
+  }
 
-    return Promise.resolve({
-      closedPosition,
-      newPosition,
+  public async cancelAllOpenedOrders(symbol: string): Promise<CancelAllOpenOrdersResult> {
+    return this.usdmClient.cancelAllOpenOrders({
+      symbol,
     });
   }
 
-  async #getUsdtBalance(client: USDMClient): Promise<number> {
-    let result: Promise<number>;
-    try {
-      const balances = await client.getBalance();
+  public async getSymbolInfo(symbol: string): Promise<FuturesSymbolExchangeInfo | undefined> {
+    return this.usdmClient.getExchangeInfo().then((result) => {
+      return result.symbols.find((s) => s.symbol === symbol);
+    });
+  }
 
-      // Get available balance
-      const balanceRecord = balances.find((balance) => {
-        let availableBalance = 0.0;
-        if (balance.asset === "USDT" && typeof balance.availableBalance === "string") {
-          availableBalance = Number.parseFloat(balance.availableBalance);
-        }
+  public calculatePnlLong(currentPrice: number, buyPrice: number, positionSize: number): number {
+    return (currentPrice - buyPrice) * positionSize;
+  }
 
-        return availableBalance > 0;
-      });
+  public calculatePnlShort(currentPrice: number, sellPrice: number, positionSize: number): number {
+    return (sellPrice - currentPrice) * positionSize;
+  }
 
-      const availableBalance = balanceRecord ? parseFloat(`${balanceRecord.availableBalance}`) : 0.0;
-      result = Promise.resolve(availableBalance);
-    } catch (e) {
-      result = Promise.resolve(0.0);
+  public targetSellPositionSize(sellPrice: number, stopPrice: number, targetLoss: number): number {
+    const oneUnitLoss = Math.abs(this.calculatePnlShort(sellPrice, stopPrice, 1));
+    return Math.abs(targetLoss) / oneUnitLoss;
+  }
+
+  public targetBuyPositionSize(buyPrice: number, stopPrice: number, targetLoss: number): number {
+    const oneUnitLoss = Math.abs(this.calculatePnlLong(buyPrice, stopPrice, 1));
+    return Math.abs(targetLoss) / oneUnitLoss;
+  }
+
+  async createStopLimit({ symbol, orderSide, price, quantity, takeProfit, stopLoss }: StopLimitOrderParams): Promise<(NewOrderResult | NewOrderError)[]> {
+    const limitOrder: NewFuturesOrderParams = {
+      symbol,
+      side: orderSide,
+      type: "LIMIT",
+      price: price.toFixed(8) as unknown as number,
+      quantity: quantity.toFixed(8) as unknown as number,
+      timeInForce: "GTX" as unknown as OrderTimeInForce,
+    };
+
+    const stopLossOrder: NewFuturesOrderParams = {
+      symbol,
+      side: orderSide === "BUY" ? "SELL" : "BUY",
+      type: "STOP_MARKET",
+      stopPrice: stopLoss.toFixed(8) as unknown as number,
+      quantity: quantity.toFixed(8) as unknown as number,
+      reduceOnly: "true",
+      priceProtect: "TRUE",
+    };
+
+    let takeProfitOrder: NewFuturesOrderParams;
+    if (takeProfit) {
+      takeProfitOrder = {
+        symbol,
+        side: orderSide === "BUY" ? "SELL" : "BUY",
+        type: "TAKE_PROFIT",
+        price: takeProfit.toFixed(8) as unknown as number,
+        stopPrice: takeProfit.toFixed(8) as unknown as number,
+        quantity: quantity.toFixed(8) as unknown as number,
+        reduceOnly: "true",
+        timeInForce: "GTX" as unknown as OrderTimeInForce,
+        priceProtect: "TRUE",
+      };
     }
-    return result;
+
+    const batchOrders = [JSON.stringify(limitOrder), JSON.stringify(stopLossOrder), ...(takeProfit ? JSON.stringify(takeProfitOrder) : [])];
+
+    return this.usdmClient.postPrivate("fapi/v1/batchOrders", {
+      batchOrders: "[" + batchOrders.join(",") + "]",
+    });
   }
 
   async #closeExistingOffer(client: USDMClient, position: FuturesPosition): Promise<NewOrderResult | NewOrderError | undefined> {
@@ -85,5 +139,16 @@ export class AppService {
       });
     }
     return result;
+  }
+
+  #getUsdmClient(): USDMClient {
+    return new USDMClient(
+      {
+        ...this.options,
+        beautifyResponses: true,
+      },
+      {},
+      false
+    );
   }
 }
