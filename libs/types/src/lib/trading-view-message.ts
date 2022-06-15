@@ -20,18 +20,18 @@ export interface TradingViewMessage {
   close: string;
   volume: string;
   timenow: string;
-	position_size: string;
+	position_size?: string;
 	strategy_order_action: TradingViewAction;
-	strategy_order_contracts: string;
-	strategy_order_price: string;
-	strategy_order_id: string;
-	strategy_order_comment: string;
-	strategy_order_alert_message: string;
-	strategy_market_position: TradingViewMarketPosition;
-	strategy_market_position_size: string;
-	strategy_prev_market_position: TradingViewMarketPosition;
-	strategy_prev_market_position_size: string;
-  plot: string;
+	strategy_order_contracts?: string;
+	strategy_order_price?: string;
+	strategy_order_id?: string;
+	strategy_order_comment?: string;
+	strategy_order_alert_message?: string;
+	strategy_market_position?: TradingViewMarketPosition;
+	strategy_market_position_size?: string;
+	strategy_prev_market_position?: TradingViewMarketPosition;
+	strategy_prev_market_position_size?: string;
+  plot?: string;
 }
 
 /*
