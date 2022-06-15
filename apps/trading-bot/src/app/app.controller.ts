@@ -19,7 +19,7 @@ export class AppController {
 
       const availableBalance = Number.parseFloat(accountSize.availableBalance.toString());
       const allowedLoss = availableBalance * 0.03;
-      const pricePostOnlyCorrection = 5 / Math.pow(10, symbolInfo.pricePrecision);
+      const pricePostOnlyCorrection = 2 / Math.pow(10, symbolInfo.pricePrecision);
       const entryPrice = Number.parseFloat(body.close) + (body.strategy_order_action === TradingViewAction.Buy ? -pricePostOnlyCorrection : pricePostOnlyCorrection);
       const quantity =
         body.strategy_order_action === TradingViewAction.Buy
