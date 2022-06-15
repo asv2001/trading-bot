@@ -18,8 +18,8 @@ export interface StopLimitOrderParams {
   symbol: string;
   orderSide: OrderSide;
   price: number;
-  takeProfit?: number;
-  stopLoss: number;
+  takeProfitPrice?: number;
+  stopLossPrice: number;
   quantity: number;
 }
 
@@ -84,7 +84,7 @@ export class AppService {
     return Math.abs(targetLoss) / oneUnitLoss;
   }
 
-  async createStopLimit({ symbol, orderSide, price, quantity, takeProfit, stopLoss }: StopLimitOrderParams): Promise<(NewOrderResult | NewOrderError)[]> {
+  async createStopLimit({ symbol, orderSide, price, quantity, takeProfitPrice, stopLossPrice }: StopLimitOrderParams): Promise<(NewOrderResult | NewOrderError)[]> {
     const limitOrder: NewFuturesOrderParams = {
       symbol,
       side: orderSide,
@@ -98,20 +98,20 @@ export class AppService {
       symbol,
       side: orderSide === "BUY" ? "SELL" : "BUY",
       type: "STOP_MARKET",
-      stopPrice: stopLoss.toFixed(8) as unknown as number,
+      stopPrice: stopLossPrice.toFixed(8) as unknown as number,
       quantity: quantity.toFixed(8) as unknown as number,
       reduceOnly: "true",
       priceProtect: "TRUE",
     };
 
     let takeProfitOrder: NewFuturesOrderParams;
-    if (takeProfit) {
+    if (takeProfitPrice) {
       takeProfitOrder = {
         symbol,
         side: orderSide === "BUY" ? "SELL" : "BUY",
         type: "TAKE_PROFIT",
-        price: takeProfit.toFixed(8) as unknown as number,
-        stopPrice: takeProfit.toFixed(8) as unknown as number,
+        price: takeProfitPrice.toFixed(8) as unknown as number,
+        stopPrice: takeProfitPrice.toFixed(8) as unknown as number,
         quantity: quantity.toFixed(8) as unknown as number,
         reduceOnly: "true",
         timeInForce: "GTX" as unknown as OrderTimeInForce,
@@ -119,7 +119,7 @@ export class AppService {
       };
     }
 
-    const batchOrders = [JSON.stringify(limitOrder), JSON.stringify(stopLossOrder), ...(takeProfit ? JSON.stringify(takeProfitOrder) : [])];
+    const batchOrders = [JSON.stringify(limitOrder), JSON.stringify(stopLossOrder), ...(takeProfitPrice ? JSON.stringify(takeProfitOrder) : [])];
 
     return this.usdmClient.postPrivate("fapi/v1/batchOrders", {
       batchOrders: "[" + batchOrders.join(",") + "]",
