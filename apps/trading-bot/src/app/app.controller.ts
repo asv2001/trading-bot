@@ -46,4 +46,18 @@ export class AppController {
         );
     });
   }
+
+  @Post("close")
+  public closePosition(@Query("accountId") accountId: string, @Body() body: TradingViewMessage): void {
+    const symbol = body.ticker.replace("PERP", "");
+    const closeOpenedPositions$ = this.appService.closePositionForSymbolOrder(symbol);
+    closeOpenedPositions$.then(
+      (result) => {
+        console.log("result", result);
+      },
+      (e) => {
+        console.log("exception", e);
+      }
+    );
+  }
 }
