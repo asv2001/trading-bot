@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Query } from "@nestjs/common";
 import { TradingViewAction, TradingViewMessage } from "@trading-bot/types";
 import { AppService } from "./app.service";
+import { SymbolMarketLotSizeFilter } from "binance";
 
 @Controller("orders")
 export class AppController {
@@ -15,7 +16,8 @@ export class AppController {
     const cancelAllOpenOrdersForSymbol$ = this.appService.cancelAllOpenedOrders(symbol);
 
     Promise.all([symbolInfo$, accountSize$, closeOpenedPositions$, cancelAllOpenOrdersForSymbol$]).then(([symbolInfo, accountSize]) => {
-      if (!symbolInfo || !accountSize) return;
+      const minMaxFilter: SymbolMarketLotSizeFilter | undefined = symbolInfo.filters.find((f) => f.filterType === "MARKET_LOT_SIZE") as SymbolMarketLotSizeFilter | undefined;
+      if (!symbolInfo || !accountSize || !minMaxFilter) return;
 
       const availableBalance = Number.parseFloat(accountSize.availableBalance.toString());
       const allowedLoss = availableBalance * 0.01;
@@ -26,12 +28,10 @@ export class AppController {
       const slPoints = Math.ceil(Math.abs(entryPrice - stopLossPrice) / priceStep);
       const tpPoints = slPoints * 5;
 
-      const quantity =
-        body.strategy_order_action === TradingViewAction.Buy
-          ? this.appService.targetBuyPositionSize(entryPrice, stopLossPrice, allowedLoss)
-          : this.appService.targetSellPositionSize(entryPrice, stopLossPrice, allowedLoss);
+      const quantity = body.strategy_order_action === TradingViewAction.Buy ? this.appService.targetBuyPositionSize(entryPrice, stopLossPrice, allowedLoss) : this.appService.targetSellPositionSize(entryPrice, stopLossPrice, allowedLoss);
+      const minQty = Math.max(Number.parseFloat(minMaxFilter.minQty.toString()), Math.ceil(5 / Number.parseFloat(body.close)));
       const quantityDivisor = Math.pow(10, symbolInfo.quantityPrecision);
-      const quantityRounded = Math.floor(quantity * quantityDivisor) / quantityDivisor;
+      const quantityRounded = Math.max(minQty, Math.floor(quantity * quantityDivisor) / quantityDivisor);
       const tpPrice = entryPrice + (body.strategy_order_action === TradingViewAction.Buy ? tpPoints * priceStep : -tpPoints * priceStep);
 
       this.appService
@@ -40,8 +40,10 @@ export class AppController {
           orderSide: body.strategy_order_action === TradingViewAction.Buy ? "BUY" : "SELL",
           price: entryPrice,
           takeProfitPrice: tpPrice,
-          quantity: quantityRounded,
           stopLossPrice: stopLossPrice,
+          quantity: quantityRounded,
+          pricePrecision: symbolInfo.pricePrecision,
+          quantityPrecision: symbolInfo.quantityPrecision,
         })
         .then(
           (result) => {
